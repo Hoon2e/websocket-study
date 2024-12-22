@@ -5,8 +5,7 @@ let stompClient = null;
 let websocketUrl = null; // 외부에서 주입받는 URL
 const maxReconnectAttempts = 10;
 let reconnectAttempts = 0;
-const pendingSubscriptions = []; // 대기 중인 구독 요청 저장소
-const activeSubscriptions = new Map(); // 활성 구독 관리
+const pendingSubscriptions = new Map(); // 활성 구독 관리
 
 let subscriptionIdCounter = 0; // 고유 ID 생성기
 
@@ -28,10 +27,10 @@ const connectStomp = () => {
     console.log("WebSocket이 닫혔습니다. 재연결을 시도합니다...");
     if (reconnectAttempts < maxReconnectAttempts) {
       reconnectAttempts += 1;
-      // setTimeout(() => {
-      //   console.log(`재연결 시도 ${reconnectAttempts}회`);
-      //   connectStomp(); // 재연결 시도
-      // }, 3000); // 1초 딜레이 후 재연결 시도
+      setTimeout(() => {
+        console.log(`재연결 시도 ${reconnectAttempts}회`);
+        connectStomp(); // 재연결 시도
+      }, 3000); // 1초 딜레이 후 재연결 시도
     } else {
       console.error(
         "최대 재연결 시도 횟수를 초과했습니다. 더 이상 시도하지 않습니다."
@@ -69,14 +68,14 @@ export const subscribe = (destination, callback) => {
       "STOMP가 연결되지 않았습니다. 구독 요청을 대기열에 추가합니다."
     );
 
-    // 대기 중인 구독 요청 큐에 추가
-    pendingSubscriptions.push({ id: subscriptionId, destination, callback });
+    // 대기 중인 구독 요청 딕셔너리에 추가
+    pendingSubscriptions.set(subscriptionId, { destination, callback });
 
     // 반환된 해제 함수
     return () => {
-      if (activeSubscriptions.has(subscriptionId)) {
+      if (pendingSubscriptions.has(subscriptionId)) {
         console.log(`${destination}에 대한 활성화된 구독을 해제합니다.`);
-        console.log(activeSubscriptions.get(subscriptionId));
+        pendingSubscriptions.delete(subscriptionId); // 대기 중인 요청 딕셔너리에서 제거
         activeSubscriptions.get(subscriptionId).unsubscribe(); // 구독 해제
         activeSubscriptions.delete(subscriptionId); // 맵에서 제거
       } else {
@@ -123,7 +122,7 @@ export const publish = (destination, body) => {
 
 const processPendingSubscriptions = () => {
   console.log("대기 중인 구독 요청 처리 중...");
-  while (pendingSubscriptions.length > 0) {
+  while (pendingSubscriptions.size > 0) {
     const { id, destination, callback } = pendingSubscriptions.shift(); // 큐에서 제거
     const subscription = stompClient.subscribe(destination, (message) =>
       callback(JSON.parse(message.body))

@@ -1,25 +1,32 @@
 import { useEffect, useState } from "react";
 import styles from "./styles.module.css";
-import { publish, subscribe } from "@utils/stomp";
 import { Link } from "react-router";
+import { useStomp } from "@/provides/StompProvider";
+
 const StompPage = () => {
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState("");
 
   const [username, setUsername] = useState("");
+  const { isConnected, subscribe, sendMessage } = useStomp();
   useEffect(() => {
     const username = prompt("사용자 이름을 입력하세요");
     setUsername(username);
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribe("/topic/public", (message) => {
-      console.log("Received message:", message);
-      setMessages((prev) => [...prev, message]);
-    });
+    let unsubscribe = () => {};
+    console.log("isConnected", isConnected);
+    if (isConnected) {
+      unsubscribe = subscribe("/topic/public", (message) => {
+        const parsed = JSON.parse(message.body);
+        console.log("Received message:", parsed);
+        setMessages((prev) => [...prev, parsed]);
+      });
+    }
 
     return () => unsubscribe();
-  }, []);
+  }, [isConnected, subscribe]);
 
   return (
     <div className={styles.app}>
@@ -49,7 +56,7 @@ const StompPage = () => {
               type="button"
               className={styles.sendButton}
               onClick={() => {
-                publish("/app/chat/send", {
+                sendMessage("/app/chat/send", {
                   username,
                   message: messageInput,
                 });
